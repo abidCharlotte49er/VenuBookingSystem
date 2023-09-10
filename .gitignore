@@ -5,3 +5,8 @@
 /VenuBookingSystem/obj
 /VenuBookingSystem/bin/Debug/net6.0
 /.vs
+/VenuBookingSystem/.vs/VenuBookingSystem/v17
+*.vsidx
+*.v2
+/VenuBookingSystem/.vs/VenuBookingSystem/FileContentIndex/140cbcab-6385-4f44-ae7a-f21c345a698a.vsidx
+/VenuBookingSystem/.vs/VenuBookingSystem/FileContentIndex/140cbcab-6385-4f44-ae7a-f21c345a698a.vsidx

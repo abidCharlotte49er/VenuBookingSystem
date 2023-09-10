@@ -5,10 +5,15 @@ TimeSpan minTimeSlot = TimeSpan.FromMinutes(30);
 TimeSpan bufferTime = TimeSpan.FromMinutes(30);
 
 TimeOnly startTime = new(5,0);
-TimeOnly endTime = new(20,0);
+TimeOnly endTime = new(22,0);
 var nl = Environment.NewLine;
 
 // Simulated booked slots This will come from DB 
+
+List<TimeSlot> blackedoutSlots = new() {
+    new TimeSlot { StartTime = new(10,30), EndTime = new(11,30) },
+    new TimeSlot { StartTime = new(19,30), EndTime = new(22,30) },
+}; 
 
 List<TimeSlot> bookedSlots = new() {
     new TimeSlot { StartTime = new(5,30), EndTime = new(7,30) },
@@ -39,10 +44,29 @@ foreach (var bs in bookedSlots)
     Console.WriteLine($"Booked from {bs.StartTime} to {bs.EndTime}, Hours {bs.EndTime - bs.StartTime}");
 }
 
+
+Console.WriteLine(nl + "*****Blacked out Slots******" + nl);
+
+foreach (var bs in blackedoutSlots)
+{
+    Console.WriteLine($"Blacked out from {bs.StartTime} to {bs.EndTime}, Hours {bs.EndTime - bs.StartTime}");
+}
+
 // Generate available slots
 List<TimeSlot> availableSlots = GetAvailableSlots(allPossibleStartTimes, bufferTime, bookedSlots);
 
-Console.WriteLine(nl + $"Remaining Available Slots : {availableSlots.Count}" + nl);
+
+Console.WriteLine(nl + "*****BEFORE removing Blacked out Slots******" + nl);
+
+foreach (var bs in availableSlots)
+{
+    Console.WriteLine($"Available from {bs.StartTime} to {bs.EndTime}, Hours {bs.EndTime - bs.StartTime}");
+}
+
+//Remove Blocked Out slots 
+availableSlots = RemoveOverlappedSlots(availableSlots, bufferTime, blackedoutSlots); 
+
+Console.WriteLine(nl + $"FINAL Remaining Available Slots : {availableSlots.Count}" + nl);
 
 // Print available slots
 foreach (var slot in availableSlots)
@@ -72,6 +96,34 @@ static List<TimeSlot> GetAvailableSlots(List<TimeSlot> allPossibleStartTimes, Ti
 {
     var nl = Environment.NewLine;
 
+    List<TimeSlot> availableSlots = RemoveOverlappedSlots(allPossibleStartTimes, bufferTime, bookedSlots);
+
+    //Console.WriteLine(nl + $"*******Filter #1 After Removing Overlaps********" + nl );
+    foreach (var slot in availableSlots)
+    {
+        //Console.WriteLine($"Available Slot: Slot #: {slot.SlotNumber}, {slot.Start} - {slot.End}");
+    }
+
+    var partialSlots = GetPartialSlots(availableSlots);
+
+    Console.WriteLine(nl + $"******* Partial / half slots (1 slot = min 1 hr) ********" + nl);
+
+    foreach (var slot in partialSlots)
+    {
+        Console.WriteLine($"Partial Slot: Slot #: {slot.SlotNumber}, {slot.StartTime} - {slot.EndTime}");
+    }
+
+    List<int> partialSlotNumbers = new List<int>(partialSlots.Select(slot => slot.SlotNumber));
+
+    // Use DeleteRange to remove items in availableSlots where SlotNumber is not present in allSlots
+    availableSlots.RemoveAll(slot => partialSlotNumbers.Contains(slot.SlotNumber));
+
+    //Console.WriteLine(nl + $"*******Filter #2 After Removing Partial Slots********" + nl );
+    return availableSlots;
+}
+
+static List<TimeSlot> RemoveOverlappedSlots(List<TimeSlot> allPossibleStartTimes, TimeSpan bufferTime, List<TimeSlot> slotsTobeRemoved)
+{
     List<TimeSlot> availableSlots = new();
 
     //Filter # 1 Iterate through booked slots to remove any overlaps
@@ -79,11 +131,11 @@ static List<TimeSlot> GetAvailableSlots(List<TimeSlot> allPossibleStartTimes, Ti
     {
         bool isOverlap = false;
 
-        foreach (var bookedSlot in bookedSlots)
+        foreach (var remSlot in slotsTobeRemoved)
         {
             // Check if the available slot overlaps with the booked slot (with buffer)
-            if ((cSlot.StartTime >= bookedSlot.StartTime.AddMinutes(- bufferTime.Minutes) && cSlot.StartTime < bookedSlot.EndTime.AddMinutes(bufferTime.Minutes)) ||
-                (cSlot.EndTime > bookedSlot.StartTime.AddMinutes(-bufferTime.Minutes) && cSlot.EndTime <= bookedSlot.EndTime.AddMinutes(bufferTime.Minutes)))
+            if ((cSlot.StartTime >= remSlot.StartTime.AddMinutes(-bufferTime.Minutes) && cSlot.StartTime < remSlot.EndTime.AddMinutes(bufferTime.Minutes)) ||
+                (cSlot.EndTime > remSlot.StartTime.AddMinutes(-bufferTime.Minutes) && cSlot.EndTime <= remSlot.EndTime.AddMinutes(bufferTime.Minutes)))
             {
                 isOverlap = true;
                 break; // No need to check further, it overlaps
@@ -97,23 +149,8 @@ static List<TimeSlot> GetAvailableSlots(List<TimeSlot> allPossibleStartTimes, Ti
         }
     }
 
-    //Console.WriteLine(nl + $"*******Filter #1 After Removing Overlaps********" + nl );
-    foreach (var slot in availableSlots)
-    {
-        //Console.WriteLine($"Available Slot: Slot #: {slot.SlotNumber}, {slot.Start} - {slot.End}");
-    }
-
-    var partialSlots = GetPartialSlots(availableSlots);
-
-    HashSet<int> partialSlotNumbers = new HashSet<int>(partialSlots.Select(slot => slot.SlotNumber));
-
-    // Use DeleteRange to remove items in availableSlots where SlotNumber is not present in allSlots
-    availableSlots.RemoveAll(slot => partialSlotNumbers.Contains(slot.SlotNumber));
-
-    //Console.WriteLine(nl + $"*******Filter #2 After Removing Partial Slots********" + nl );
-    return availableSlots;
+    return availableSlots; 
 }
-
 static List<TimeSlot> GetPartialSlots(List<TimeSlot> slots)
 {
     List<TimeSlot> partialSlots = new();
