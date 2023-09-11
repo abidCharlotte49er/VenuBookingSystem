@@ -1,34 +1,37 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
 // Define your booking parameters
-TimeSpan minTimeSlot = TimeSpan.FromMinutes(30);
+TimeSpan minStartTimeIncrement = TimeSpan.FromMinutes(30); // This allows us to start at 00 or 30 hours like 10:00 AM or 10:30 AM after buffer 
 TimeSpan bufferTime = TimeSpan.FromMinutes(30);
+TimeSpan minBookableSlot = TimeSpan.FromMinutes(60); // A min 1 hour / 60 min slot must be booked. 
 
-TimeOnly startTime = new(5,0);
-TimeOnly endTime = new(22,0);
+TimeOnly startTime = new(5, 0);
+TimeOnly endTime = new(22, 0);
 var nl = Environment.NewLine;
 
 // Simulated booked slots This will come from DB 
 
-List<TimeSlot> blackedoutSlots = new() {
-    new TimeSlot { StartTime = new(10,30), EndTime = new(11,30) },
-    new TimeSlot { StartTime = new(19,30), EndTime = new(22,30) },
-}; 
+List<TimeSlot> blackedoutSlots = new()
+{
+    new TimeSlot { StartTime = new(10, 30), EndTime = new(11, 30) },
+    new TimeSlot { StartTime = new(19, 30), EndTime = new(22, 30) },
+};
 
-List<TimeSlot> bookedSlots = new() {
-    new TimeSlot { StartTime = new(5,30), EndTime = new(7,30) },
-    new TimeSlot { StartTime = new(9,00), EndTime = new(10,00) },
-    new TimeSlot { StartTime = new(12,00), EndTime = new(13,00) },
-    new TimeSlot { StartTime = new(14,30), EndTime = new(16,30) },
-    new TimeSlot { StartTime = new(18,00), EndTime = new(19,00) },
-}; 
+List<TimeSlot> bookedSlots = new()
+{
+    //new TimeSlot { StartTime = new(5, 30), EndTime = new(7, 30) },
+    //new TimeSlot { StartTime = new(9, 00), EndTime = new(10, 00) },
+    //new TimeSlot { StartTime = new(16, 00), EndTime = new(17, 00) },
+    //new TimeSlot { StartTime = new(14,30), EndTime = new(16,30) },
+    //new TimeSlot { StartTime = new(18,00), EndTime = new(19,00) },
+};
 
 
-Console.WriteLine($"Min Start Intervals: {minTimeSlot}, bufferTime : {bufferTime}, startTime : {startTime}, endTime: {endTime}" + nl);
+Console.WriteLine($"Min Start Intervals: {minStartTimeIncrement}, bufferTime : {bufferTime}, startTime : {startTime}, endTime: {endTime}" + nl);
 
 
 // Generate all possible start and end Times within the specified time range
-var allPossibleStartTimes = GetAllPossibleStartTimes(startTime, endTime, minTimeSlot);
+var allPossibleStartTimes = GetAllPossibleStartTimes(startTime, endTime, minStartTimeIncrement);
 
 Console.WriteLine($"*** ALL Possible start and end times between {startTime} - {endTime}" + nl);
 
@@ -64,7 +67,7 @@ foreach (var bs in availableSlots)
 }
 
 //Remove Blocked Out slots 
-availableSlots = RemoveOverlappedSlots(availableSlots, bufferTime, blackedoutSlots); 
+availableSlots = RemoveOverlappedSlots(availableSlots, bufferTime, blackedoutSlots);
 
 Console.WriteLine(nl + $"FINAL Remaining Available Slots : {availableSlots.Count}" + nl);
 
@@ -72,6 +75,20 @@ Console.WriteLine(nl + $"FINAL Remaining Available Slots : {availableSlots.Count
 foreach (var slot in availableSlots)
 {
     Console.WriteLine($"Available Slot: Slot #: {slot.SlotNumber}, {slot.StartTime} - {slot.EndTime}");
+}
+
+foreach (var slot in availableSlots)
+{
+    Console.WriteLine($"For {slot.StartTime} .. Possible End times are ...");
+
+    var possibleEndTimes = GetPossibleEndTimes(slot.StartTime, minBookableSlot, availableSlots);
+
+    foreach (var endtime in possibleEndTimes)
+    {
+        Console.WriteLine($"{endtime}");
+    }
+
+
 }
 
 static List<TimeSlot> GetAllPossibleStartTimes(TimeOnly startTime, TimeOnly endTime, TimeSpan minTimeSlot)
@@ -90,7 +107,6 @@ static List<TimeSlot> GetAllPossibleStartTimes(TimeOnly startTime, TimeOnly endT
 
     return allPossibleSlots;
 }
-
 
 static List<TimeSlot> GetAvailableSlots(List<TimeSlot> allPossibleStartTimes, TimeSpan bufferTime, List<TimeSlot> bookedSlots)
 {
@@ -149,8 +165,9 @@ static List<TimeSlot> RemoveOverlappedSlots(List<TimeSlot> allPossibleStartTimes
         }
     }
 
-    return availableSlots; 
+    return availableSlots;
 }
+
 static List<TimeSlot> GetPartialSlots(List<TimeSlot> slots)
 {
     List<TimeSlot> partialSlots = new();
@@ -168,5 +185,35 @@ static List<TimeSlot> GetPartialSlots(List<TimeSlot> slots)
     return partialSlots;
 }
 
+static List<TimeOnly> GetPossibleEndTimes(TimeOnly startTime, TimeSpan minBookableSlot, List<TimeSlot> availableSlots)
+{
+    List<TimeOnly> possibleEndTimes = new List<TimeOnly>();
+
+    var potentialEndTime = startTime.AddMinutes(minBookableSlot.Minutes); //If start is 12 potential Endtime is 1 
+
+    var lastSlotEndTime = potentialEndTime;
+
+    var lastPossibleEndTime = availableSlots.LastOrDefault()?.EndTime;
+
+    while (potentialEndTime <= lastPossibleEndTime)
+    {
+        //Check if this endtime is in AvailableSlot 
+        var endTimeExists = availableSlots.Where(s => s.EndTime == potentialEndTime).Count();
+
+        //If the time difference between last aded slot and new slot is NOT EQ minBookableSlot then that means in between slots are booked. 
+        if (endTimeExists > 0 && ((potentialEndTime != startTime && potentialEndTime == lastSlotEndTime) || potentialEndTime - lastSlotEndTime == minBookableSlot))
+        {
+            possibleEndTimes.Add(potentialEndTime);
+
+            lastSlotEndTime = potentialEndTime;
+        }
+
+
+
+        potentialEndTime = potentialEndTime.AddHours(1);
+    }
+
+    return possibleEndTimes;
+}
 
 Console.ReadLine();
